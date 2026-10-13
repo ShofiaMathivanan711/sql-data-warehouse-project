@@ -2,72 +2,66 @@
 
 ## Overview
 
-This project demonstrates the implementation of a modern SQL Server Data Warehouse using a Medallion Architecture (Bronze, Silver, Gold) approach.
+This project demonstrates the design and implementation of a modern Data Warehouse using SQL Server and the Medallion Architecture pattern (Bronze, Silver, and Gold layers).
 
-The solution ingests data from CRM and ERP source systems, performs data cleansing and standardization, and delivers business-ready dimensional models for reporting, analytics, and downstream consumption.
-
----
-
-## Project Objectives
-
-- Build a scalable SQL Server Data Warehouse.
-- Implement ETL processes using Stored Procedures.
-- Apply data quality checks and transformation rules.
-- Design a dimensional model using Star Schema.
-- Create business-ready views for analytics and reporting.
-- Demonstrate end-to-end data lineage from sources to reporting layer.
+Data is extracted from CRM and ERP source systems, loaded into a raw storage layer, transformed and standardized through an ETL process, and finally exposed as business-ready dimensional models for analytics and reporting.
 
 ---
 
-## Architecture
+## Project Architecture
 
-### High-Level Architecture
+The solution follows a multi-layered Data Warehouse architecture:
 
-The project follows a three-layer Medallion Architecture:
+### Bronze Layer
+- Stores raw source data.
+- Acts as the landing zone for CRM and ERP files.
+- No transformations are applied.
+- Supports full-load batch processing.
 
-- **Bronze Layer** → Raw data ingestion
-- **Silver Layer** → Data cleansing and standardization
-- **Gold Layer** → Business-ready dimensional model
+### Silver Layer
+- Stores cleansed and standardized data.
+- Applies business rules and validations.
+- Removes duplicates.
+- Normalizes values and handles missing data.
+- Creates a consistent data foundation.
 
-![High Level Architecture](images/High%20level%20Architecture.png)
+### Gold Layer
+- Provides business-ready datasets.
+- Implements a Star Schema model.
+- Contains dimension and fact views.
+- Supports reporting, dashboards, analytics, and machine learning workloads.
 
 ---
 
 ## Data Sources
 
-The warehouse integrates data from two source systems:
-
 ### CRM System
+Source data files:
+
 - Customer Information
 - Product Information
-- Sales Transactions
+- Sales Details
 
 ### ERP System
+Source data files:
+
 - Customer Demographics
 - Customer Locations
 - Product Categories
 
-Source files are provided as CSV files and loaded using SQL Server `BULK INSERT`.
+All source data is loaded from CSV files using SQL Server BULK INSERT operations.
 
 ---
 
 ## Data Warehouse Layers
 
-### Bronze Layer
+## Bronze Layer
 
-Purpose:
-- Landing zone for raw source data
-- Exact copy of source files
-- No transformations applied
+The Bronze layer stores raw data exactly as received from source systems.
 
-Load Strategy:
-- Full Load
-- Batch Processing
-- Truncate & Insert
+### Tables
 
-Tables:
-
-```text
+```sql
 bronze.crm_cust_info
 bronze.crm_prd_info
 bronze.crm_sales_details
@@ -77,44 +71,23 @@ bronze.erp_cust_az12
 bronze.erp_px_cat_g1v2
 ```
 
+### Characteristics
+
+- Raw source data
+- No transformations
+- Truncate and reload strategy
+- Full batch loads
+- Source system preservation
+
 ---
 
-### Silver Layer
+## Silver Layer
 
-Purpose:
-- Data cleansing
-- Standardization
-- Normalization
-- Business rule application
+The Silver layer performs data cleansing, validation, standardization, and enrichment.
 
-Transformations performed:
+### Tables
 
-#### Customer Data
-- Remove duplicates
-- Standardize gender values
-- Standardize marital status values
-- Trim unwanted spaces
-
-#### Product Data
-- Derive category identifiers
-- Map product line codes
-- Handle missing cost values
-- Generate product end dates
-
-#### Sales Data
-- Validate dates
-- Recalculate invalid sales amounts
-- Derive missing prices
-
-#### ERP Data
-- Standardize country names
-- Handle future birth dates
-- Normalize gender values
-- Remove invalid prefixes
-
-Tables:
-
-```text
+```sql
 silver.crm_cust_info
 silver.crm_prd_info
 silver.crm_sales_details
@@ -124,91 +97,165 @@ silver.erp_cust_az12
 silver.erp_px_cat_g1v2
 ```
 
+### Transformations Performed
+
+#### Customer Transformations
+
+- Removed duplicate customer records.
+- Retained latest customer record.
+- Standardized gender values.
+- Standardized marital status values.
+- Trimmed leading and trailing spaces.
+
+#### Product Transformations
+
+- Extracted category identifiers.
+- Extracted product keys.
+- Standardized product line values.
+- Replaced NULL costs with zero.
+- Calculated product end dates using window functions.
+
+#### Sales Transformations
+
+- Validated order, ship, and due dates.
+- Corrected invalid sales amounts.
+- Derived missing prices.
+- Handled invalid values and data quality issues.
+
+#### ERP Transformations
+
+- Standardized gender values.
+- Removed invalid customer prefixes.
+- Standardized country names.
+- Replaced missing countries with default values.
+- Removed future birth dates.
+
 ---
 
-### Gold Layer
+## Gold Layer
 
-Purpose:
-- Business-ready presentation layer
-- Dimensional modeling
-- Analytics and reporting
+The Gold layer provides business-ready analytical models.
 
-Objects:
+### Views
 
-```text
+```sql
 gold.dim_customers
 gold.dim_products
 gold.fact_sales
 ```
 
----
+### Purpose
 
-## Data Flow
-
-The following diagram shows how data moves from source systems through Bronze and Silver layers before being transformed into analytical models in the Gold layer.
-
-![Data Flow](images/Data%20Flow.png)
-
----
-
-## Star Schema Design
-
-The Gold Layer implements a Sales Data Mart using a Star Schema.
-
-### Fact Table
-
-#### fact_sales
-
-Measures:
-- Sales Amount
-- Quantity
-- Price
-
-Foreign Keys:
-- Customer Key
-- Product Key
+- Reporting
+- Business Intelligence
+- Dashboarding
+- Ad-hoc Analysis
+- Analytical Queries
+- Machine Learning
 
 ---
 
-### Dimension Tables
+# Star Schema
 
-#### dim_customers
-
-Attributes:
-- Customer ID
-- Customer Number
-- First Name
-- Last Name
-- Country
-- Marital Status
-- Gender
-- Birthdate
-
-#### dim_products
-
-Attributes:
-- Product ID
-- Product Number
-- Product Name
-- Category
-- Subcategory
-- Maintenance
-- Cost
-- Product Line
+The Gold layer implements a Sales Data Mart using a Star Schema design.
 
 ---
 
-### Star Schema Diagram
+## Dimension: dim_customers
 
-![Star Schema](images/Star%20Schema.png)
+Contains customer-related attributes.
+
+### Columns
+
+```text
+customer_key
+customer_id
+customer_number
+first_name
+last_name
+country
+marital_status
+gender
+birthdate
+create_date
+```
+
+### Business Rules
+
+- CRM is treated as the primary source for gender information.
+- ERP data is used as a fallback source.
+- Customer location information is enriched from ERP source tables.
 
 ---
 
-## ETL Process
+## Dimension: dim_products
 
-### Step 1: Create Database & Schemas
+Contains product-related attributes.
 
-Creates:
+### Columns
+
+```text
+product_key
+product_id
+product_number
+product_name
+category_id
+category
+subcategory
+maintenance
+cost
+product_line
+start_date
+```
+
+### Business Rules
+
+- Category information is enriched from ERP category tables.
+- Historical products are excluded.
+- Only active product records are exposed.
+
+---
+
+## Fact: fact_sales
+
+Contains transactional sales facts.
+
+### Columns
+
+```text
+order_number
+product_key
+customer_key
+order_date
+shipping_date
+due_date
+sales_amount
+quantity
+price
+```
+
+### Measures
+
+```text
+sales_amount
+quantity
+price
+```
+
+### Relationships
+
+```text
+fact_sales → dim_customers
+fact_sales → dim_products
+```
+
+---
+
+# ETL Process
+
+## Step 1: Create Database and Schemas
+
+Creates the following objects:
 
 ```sql
 DataWarehouse
@@ -220,7 +267,7 @@ gold
 
 ---
 
-### Step 2: Load Bronze Layer
+## Step 2: Load Bronze Layer
 
 Stored Procedure:
 
@@ -230,13 +277,13 @@ EXEC bronze.load_bronze;
 
 Responsibilities:
 
-- Truncate Bronze tables
-- Import CSV files
-- Load raw source data
+- Truncate Bronze tables.
+- Load CSV source files.
+- Preserve raw source data.
 
 ---
 
-### Step 3: Load Silver Layer
+## Step 3: Load Silver Layer
 
 Stored Procedure:
 
@@ -246,21 +293,17 @@ EXEC silver.load_silver;
 
 Responsibilities:
 
-- Data cleansing
-- Data validation
-- Standardization
-- Business rule application
+- Data cleansing.
+- Data validation.
+- Standardization.
+- Data enrichment.
+- Business rule implementation.
 
 ---
 
-### Step 4: Query Gold Layer
+## Step 4: Consume Gold Layer
 
-Example:
-
-```sql
-SELECT *
-FROM gold.fact_sales;
-```
+Example Queries:
 
 ```sql
 SELECT *
@@ -272,64 +315,122 @@ SELECT *
 FROM gold.dim_products;
 ```
 
+```sql
+SELECT *
+FROM gold.fact_sales;
+```
+
 ---
 
-## Database Objects
-
-### Schemas
+# Data Lineage
 
 ```text
+CRM CSV Files
+        |
+        v
+Bronze CRM Tables
+        |
+        v
+Silver CRM Tables
+        |
+        v
+Gold Dimensions & Facts
+
+ERP CSV Files
+        |
+        v
+Bronze ERP Tables
+        |
+        v
+Silver ERP Tables
+        |
+        v
+Gold Dimensions
+```
+
+---
+
+# Database Objects
+
+## Schemas
+
+```sql
 bronze
 silver
 gold
 ```
 
-### Stored Procedures
+### Bronze Tables
 
-```text
-bronze.load_bronze
-silver.load_silver
+```sql
+crm_cust_info
+crm_prd_info
+crm_sales_details
+
+erp_loc_a101
+erp_cust_az12
+erp_px_cat_g1v2
+```
+
+### Silver Tables
+
+```sql
+crm_cust_info
+crm_prd_info
+crm_sales_details
+
+erp_loc_a101
+erp_cust_az12
+erp_px_cat_g1v2
 ```
 
 ### Gold Views
 
-```text
-gold.dim_customers
-gold.dim_products
-gold.fact_sales
+```sql
+dim_customers
+dim_products
+fact_sales
+```
+
+### Stored Procedures
+
+```sql
+bronze.load_bronze
+silver.load_silver
 ```
 
 ---
 
-## Technologies Used
+# Technologies Used
 
 - SQL Server
 - T-SQL
 - Stored Procedures
 - BULK INSERT
-- Star Schema
-- Dimensional Modeling
 - Data Warehousing
 - ETL Development
-
----
-
-## Key Concepts Demonstrated
-
-- Data Warehouse Architecture
-- Medallion Architecture
-- ETL Pipeline Design
-- Data Cleansing
-- Data Standardization
-- Slowly Changing Product History Handling
 - Dimensional Modeling
-- Star Schema Design
-- Fact and Dimension Tables
-- Data Lineage
+- Star Schema
+- Window Functions
+- Data Quality Validation
 
 ---
 
-## Repository Structure
+# Key Features
+
+- End-to-end ETL pipeline
+- Medallion Architecture implementation
+- Data standardization and cleansing
+- Business rule enforcement
+- Data lineage tracking
+- Star Schema design
+- Surrogate key generation
+- Analytical data modeling
+- Reporting-ready datasets
+
+---
+
+# Repository Structure
 
 ```text
 sql-data-warehouse-project/
@@ -344,29 +445,27 @@ sql-data-warehouse-project/
 │   ├── silver_layer.sql
 │   └── gold_layer.sql
 │
-├── images/
-│   ├── High level Architecture.png
-│   ├── Data Flow.png
-│   └── Star Schema.png
+├── docs/
+│   ├── architecture
+│   ├── data_flow
+│   └── star_schema
 │
 └── README.md
 ```
 
 ---
 
-## Business Outcome
+# Business Value
 
-This project delivers a complete analytics-ready Data Warehouse that transforms raw CRM and ERP data into a structured Sales Data Mart, enabling:
+This project transforms raw CRM and ERP data into a centralized Sales Data Mart that enables:
 
 - Business Intelligence Reporting
-- Ad-hoc Analysis
-- KPI Tracking
-- Dashboard Development
-- Data Science & Machine Learning Use Cases
+- Self-Service Analytics
+- KPI Monitoring
+- Executive Dashboards
+- Data Science Workloads
+- Machine Learning Applications
 
 ---
 
-## Author
-
-**Shofia Mathivanan**
 
